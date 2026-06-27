@@ -3,20 +3,27 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: 당직 스케줄러 API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: members
+    description: Member management
+  - name: duties
+    description: Duty schedule management
+  - name: swaps
+    description: Duty swap operations
+  - name: memos
+    description: Day memos
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +31,237 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /members:
+    get:
+      operationId: listMembers
+      tags: [members]
+      summary: List all members
+      responses:
+        "200":
+          description: List of members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Member"
+    post:
+      operationId: createMember
+      tags: [members]
+      summary: Add a member
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberInput"
+      responses:
+        "201":
+          description: Created member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+
+  /members/{id}:
+    delete:
+      operationId: deleteMember
+      tags: [members]
+      summary: Delete a member
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+
+  /duties:
+    get:
+      operationId: listDuties
+      tags: [duties]
+      summary: List duties for a date range
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Start date YYYY-MM-DD
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+          description: End date YYYY-MM-DD
+      responses:
+        "200":
+          description: List of duties
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Duty"
+
+  /duties/{date}:
+    put:
+      operationId: updateDuty
+      tags: [duties]
+      summary: Set duty personnel for a specific date
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Date YYYY-MM-DD
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DutyInput"
+      responses:
+        "200":
+          description: Updated duty
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Duty"
+
+  /duties/swap:
+    post:
+      operationId: swapDuties
+      tags: [swaps]
+      summary: Swap duties between two dates
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SwapInput"
+      responses:
+        "200":
+          description: Swap result with both updated duties
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SwapResult"
+
+  /swaps:
+    get:
+      operationId: listSwaps
+      tags: [swaps]
+      summary: List swap history
+      responses:
+        "200":
+          description: Swap history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SwapRecord"
+
+  /memos/{date}:
+    get:
+      operationId: getMemo
+      tags: [memos]
+      summary: Get memo for a specific date
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Memo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Memo"
+        "404":
+          description: No memo for this date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: upsertMemo
+      tags: [memos]
+      summary: Create or update memo for a date
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemoInput"
+      responses:
+        "200":
+          description: Upserted memo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Memo"
+    delete:
+      operationId: deleteMemo
+      tags: [memos]
+      summary: Delete memo for a date
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResult"
+
+  /memos:
+    get:
+      operationId: listMemos
+      tags: [memos]
+      summary: List all memos for a date range
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of memos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Memo"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +272,148 @@ components:
       required:
         - status
 
+    Member:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - createdAt
+
+    MemberInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+      required:
+        - name
+
+    Duty:
+      type: object
+      properties:
+        date:
+          type: string
+          description: YYYY-MM-DD
+        memberIds:
+          type: array
+          items:
+            type: integer
+          description: IDs of members on duty (1-2)
+        memberNames:
+          type: array
+          items:
+            type: string
+      required:
+        - date
+        - memberIds
+        - memberNames
+
+    DutyInput:
+      type: object
+      properties:
+        memberIds:
+          type: array
+          items:
+            type: integer
+          description: IDs of members on duty (1-2)
+      required:
+        - memberIds
+
+    SwapInput:
+      type: object
+      properties:
+        dateA:
+          type: string
+          description: First date YYYY-MM-DD
+        dateB:
+          type: string
+          description: Second date YYYY-MM-DD
+      required:
+        - dateA
+        - dateB
+
+    SwapResult:
+      type: object
+      properties:
+        dutyA:
+          $ref: "#/components/schemas/Duty"
+        dutyB:
+          $ref: "#/components/schemas/Duty"
+        swapRecord:
+          $ref: "#/components/schemas/SwapRecord"
+      required:
+        - dutyA
+        - dutyB
+        - swapRecord
+
+    SwapRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        dateA:
+          type: string
+        dateB:
+          type: string
+        memberNamesA:
+          type: array
+          items:
+            type: string
+        memberNamesB:
+          type: array
+          items:
+            type: string
+        swappedAt:
+          type: string
+      required:
+        - id
+        - dateA
+        - dateB
+        - memberNamesA
+        - memberNamesB
+        - swappedAt
+
+    Memo:
+      type: object
+      properties:
+        date:
+          type: string
+        content:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - date
+        - content
+        - updatedAt
+
+    MemoInput:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content
+
+    DeleteResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
