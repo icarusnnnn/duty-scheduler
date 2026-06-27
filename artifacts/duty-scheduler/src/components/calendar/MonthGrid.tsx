@@ -98,7 +98,7 @@ export function MonthGrid({
                 "min-h-[100px] p-2 border-r border-b relative transition-colors cursor-pointer group",
                 "hover:bg-muted/30",
                 today && "bg-primary/5",
-                isPrevRedDay && !today && "bg-muted/20",
+                isPrevRedDay && !today && "bg-muted/50",
                 isSelectedForSwap && "bg-primary/10 ring-2 ring-primary ring-inset z-10",
                 i % 7 === 6 && "border-r-0"
               )}
