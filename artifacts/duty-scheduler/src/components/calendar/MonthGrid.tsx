@@ -53,21 +53,41 @@ export function MonthGrid({
       <div className="grid grid-cols-7 auto-rows-fr">
         {days.map((day, i) => {
           const dateStr = format(day, "yyyy-MM-dd");
+          const isCurrentMonth = isSameMonth(day, monthStart);
+
+          // 이번달 날짜가 아니면 빈 칸만 표시
+          if (!isCurrentMonth) {
+            return (
+              <div
+                key={dateStr}
+                className={cn(
+                  "min-h-[100px] border-r border-b bg-muted/5",
+                  i % 7 === 6 && "border-r-0"
+                )}
+              />
+            );
+          }
+
           const duty = duties.find((d) => d.date === dateStr);
           const hasMemo = memos.some((m) => m.date === dateStr);
-          const isCurrentMonth = isSameMonth(day, monthStart);
           const today = isToday(day);
           const holiday = isKoreanHoliday(dateStr);
           const holidayName = getHolidayName(dateStr);
           const isRedDay = day.getDay() === 0 || holiday;
-          
+
+          // 직전 날이 빨간날(일요일 또는 공휴일)인지 확인
+          const prevDay = i > 0 ? days[i - 1] : null;
+          const prevDateStr = prevDay ? format(prevDay, "yyyy-MM-dd") : null;
+          const isPrevRedDay = prevDay
+            ? prevDay.getDay() === 0 || (prevDateStr ? isKoreanHoliday(prevDateStr) : false)
+            : false;
+
           const isSelectedForSwap = swapSelection.includes(dateStr);
 
           return (
             <div
               key={dateStr}
               onClick={() => {
-                if (!isCurrentMonth) return;
                 if (swapMode) {
                   onDaySelectForSwap(dateStr);
                 } else {
@@ -76,9 +96,9 @@ export function MonthGrid({
               }}
               className={cn(
                 "min-h-[100px] p-2 border-r border-b relative transition-colors cursor-pointer group",
-                !isCurrentMonth && "bg-muted/5 opacity-50 cursor-default",
-                isCurrentMonth && "hover:bg-muted/30",
+                "hover:bg-muted/30",
                 today && "bg-primary/5",
+                isPrevRedDay && !today && "bg-muted/20",
                 isSelectedForSwap && "bg-primary/10 ring-2 ring-primary ring-inset z-10",
                 i % 7 === 6 && "border-r-0"
               )}
@@ -95,7 +115,7 @@ export function MonthGrid({
                   >
                     {format(day, "d")}
                   </span>
-                  {isCurrentMonth && holidayName && (
+                  {holidayName && (
                     <span className="text-[9px] leading-tight text-destructive font-medium pl-0.5 max-w-[60px] truncate">
                       {holidayName}
                     </span>
@@ -106,23 +126,21 @@ export function MonthGrid({
                 )}
               </div>
 
-              {isCurrentMonth && (
-                <div className="mt-2 flex flex-col gap-1">
-                  {duty?.memberNames.map((name, idx) => (
-                    <div
-                      key={idx}
-                      className="text-xs px-1.5 py-0.5 rounded bg-white dark:bg-black border border-border/50 text-foreground font-medium truncate"
-                    >
-                      {name}
-                    </div>
-                  ))}
-                  {(!duty || duty.memberNames.length === 0) && (
-                    <div className="text-xs px-1.5 py-0.5 text-muted-foreground/0 group-hover:text-muted-foreground/40 transition-colors">
-                      +
-                    </div>
-                  )}
-                </div>
-              )}
+              <div className="mt-2 flex flex-col gap-1">
+                {duty?.memberNames.map((name, idx) => (
+                  <div
+                    key={idx}
+                    className="text-xs px-1.5 py-0.5 rounded bg-white dark:bg-black border border-border/50 text-foreground font-medium truncate"
+                  >
+                    {name}
+                  </div>
+                ))}
+                {(!duty || duty.memberNames.length === 0) && (
+                  <div className="text-xs px-1.5 py-0.5 text-muted-foreground/0 group-hover:text-muted-foreground/40 transition-colors">
+                    +
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
