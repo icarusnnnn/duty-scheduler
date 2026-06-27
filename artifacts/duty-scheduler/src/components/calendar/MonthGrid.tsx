@@ -1,7 +1,8 @@
 import React from "react";
-import { format, isSameMonth, isToday, parseISO } from "date-fns";
+import { format, isSameMonth, isToday } from "date-fns";
 import { cn } from "@/lib/utils";
 import { getMonthGrid } from "@/lib/date-utils";
+import { isKoreanHoliday, getHolidayName } from "@/lib/korean-holidays";
 import type { Duty, Memo } from "@workspace/api-client-react";
 
 interface MonthGridProps {
@@ -56,6 +57,9 @@ export function MonthGrid({
           const hasMemo = memos.some((m) => m.date === dateStr);
           const isCurrentMonth = isSameMonth(day, monthStart);
           const today = isToday(day);
+          const holiday = isKoreanHoliday(dateStr);
+          const holidayName = getHolidayName(dateStr);
+          const isRedDay = day.getDay() === 0 || holiday;
           
           const isSelectedForSwap = swapSelection.includes(dateStr);
 
@@ -80,16 +84,23 @@ export function MonthGrid({
               )}
             >
               <div className="flex justify-between items-start">
-                <span
-                  className={cn(
-                    "text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full",
-                    today && "bg-primary text-primary-foreground",
-                    !today && day.getDay() === 0 && "text-destructive",
-                    !today && day.getDay() === 6 && "text-primary"
+                <div className="flex flex-col items-start gap-0.5">
+                  <span
+                    className={cn(
+                      "text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full",
+                      today && "bg-primary text-primary-foreground",
+                      !today && isRedDay && "text-destructive",
+                      !today && !isRedDay && day.getDay() === 6 && "text-primary"
+                    )}
+                  >
+                    {format(day, "d")}
+                  </span>
+                  {isCurrentMonth && holidayName && (
+                    <span className="text-[9px] leading-tight text-destructive font-medium pl-0.5 max-w-[60px] truncate">
+                      {holidayName}
+                    </span>
                   )}
-                >
-                  {format(day, "d")}
-                </span>
+                </div>
                 {hasMemo && (
                   <div className="w-2 h-2 rounded-full bg-accent-foreground mt-1.5 mr-1" />
                 )}
