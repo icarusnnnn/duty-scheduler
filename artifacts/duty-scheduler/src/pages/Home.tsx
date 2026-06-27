@@ -15,7 +15,7 @@ import { MemberManager } from "@/components/members/MemberManager";
 import { DayDetailModal } from "@/components/calendar/DayDetailModal";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeftRight, Check, X } from "lucide-react";
+import { ArrowLeftRight, User, X } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
 export default function Home() {
@@ -48,7 +48,15 @@ export default function Home() {
   const [swapSelection, setSwapSelection] = useState<string[]>([]);
   const [swapConfirmOpen, setSwapConfirmOpen] = useState(false);
 
+  // 개인 당직일 확인 모드
+  const [highlightedMember, setHighlightedMember] = useState<string | null>(null);
+
+  const handleMemberHighlight = (name: string) => {
+    setHighlightedMember(prev => prev === name ? null : name);
+  };
+
   const handleDayClick = (date: string, duty: any) => {
+    if (highlightedMember) return; // 하이라이트 모드 중엔 모달 열지 않음
     setModalState({
       isOpen: true,
       date,
@@ -91,6 +99,11 @@ export default function Home() {
   const swapDutyA = duties.find(d => d.date === swapSelection[0]);
   const swapDutyB = duties.find(d => d.date === swapSelection[1]);
 
+  // 하이라이트된 멤버의 당직 날짜 수 계산
+  const highlightedMemberDayCount = highlightedMember
+    ? duties.filter(d => d.memberNames.includes(highlightedMember)).length
+    : 0;
+
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <main className="flex-1 flex flex-col min-w-0">
@@ -103,6 +116,21 @@ export default function Home() {
             </span>
           </div>
           <div className="flex items-center gap-3">
+            {/* 개인 당직일 확인 모드 배지 */}
+            {highlightedMember && (
+              <div className="flex items-center gap-2 bg-amber-50 text-amber-800 px-3 py-1.5 rounded-md border border-amber-300">
+                <User className="w-4 h-4" />
+                <span className="text-sm font-semibold">{highlightedMember}</span>
+                <span className="text-xs text-amber-600">· {highlightedMemberDayCount}일</span>
+                <button
+                  className="ml-1 hover:bg-amber-200 rounded p-0.5 transition-colors"
+                  onClick={() => setHighlightedMember(null)}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
             {swapMode ? (
               <div className="flex items-center gap-2 bg-primary/10 text-primary px-3 py-1.5 rounded-md border border-primary/20">
                 <span className="text-sm font-medium">교체할 두 날짜를 선택하세요 ({swapSelection.length}/2)</span>
@@ -141,6 +169,8 @@ export default function Home() {
               swapMode={swapMode}
               swapSelection={swapSelection}
               onDaySelectForSwap={handleDaySelectForSwap}
+              highlightedMember={highlightedMember}
+              onMemberClick={handleMemberHighlight}
             />
           )}
         </div>

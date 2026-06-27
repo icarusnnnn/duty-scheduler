@@ -11,6 +11,8 @@ interface CalendarContainerProps {
   swapMode: boolean;
   swapSelection: string[];
   onDaySelectForSwap: (date: string) => void;
+  highlightedMember: string | null;
+  onMemberClick: (name: string) => void;
 }
 
 export function CalendarContainer({
@@ -20,7 +22,9 @@ export function CalendarContainer({
   onDayClick,
   swapMode,
   swapSelection,
-  onDaySelectForSwap
+  onDaySelectForSwap,
+  highlightedMember,
+  onMemberClick
 }: CalendarContainerProps) {
   const months = generateMonthsList(startDate, 6);
 
@@ -36,6 +40,8 @@ export function CalendarContainer({
           swapMode={swapMode}
           swapSelection={swapSelection}
           onDaySelectForSwap={onDaySelectForSwap}
+          highlightedMember={highlightedMember}
+          onMemberClick={onMemberClick}
         />
       ))}
     </div>

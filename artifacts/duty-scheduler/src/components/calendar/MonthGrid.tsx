@@ -13,6 +13,8 @@ interface MonthGridProps {
   swapMode: boolean;
   swapSelection: string[];
   onDaySelectForSwap: (date: string) => void;
+  highlightedMember: string | null;
+  onMemberClick: (name: string) => void;
 }
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -24,7 +26,9 @@ export function MonthGrid({
   onDayClick,
   swapMode,
   swapSelection,
-  onDaySelectForSwap
+  onDaySelectForSwap,
+  highlightedMember,
+  onMemberClick
 }: MonthGridProps) {
   const days = getMonthGrid(monthStart);
 
@@ -84,6 +88,15 @@ export function MonthGrid({
 
           const isSelectedForSwap = swapSelection.includes(dateStr);
 
+          // 개인 당직일 확인: 이 날에 하이라이트된 멤버가 당직인지
+          const isHighlightedDay =
+            highlightedMember != null &&
+            duty?.memberNames.includes(highlightedMember) === true;
+
+          // 하이라이트 모드가 켜져있지만 이 날은 해당 없는 경우 흐리게
+          const isDimmed =
+            highlightedMember != null && !isHighlightedDay;
+
           return (
             <div
               key={dateStr}
@@ -97,8 +110,10 @@ export function MonthGrid({
               className={cn(
                 "min-h-[100px] p-2 border-r border-b relative transition-colors cursor-pointer group",
                 "hover:bg-muted/30",
-                today && "bg-primary/5",
-                isPrevRedDay && !today && "bg-muted/50",
+                today && !isHighlightedDay && "bg-primary/5",
+                isPrevRedDay && !today && !isHighlightedDay && "bg-muted/50",
+                isHighlightedDay && "bg-amber-100 ring-2 ring-amber-400 ring-inset z-10",
+                isDimmed && "opacity-40",
                 isSelectedForSwap && "bg-primary/10 ring-2 ring-primary ring-inset z-10",
                 i % 7 === 6 && "border-r-0"
               )}
@@ -130,7 +145,16 @@ export function MonthGrid({
                 {duty?.memberNames.map((name, idx) => (
                   <div
                     key={idx}
-                    className="text-xs px-1.5 py-0.5 rounded bg-white dark:bg-black border border-border/50 text-foreground font-medium truncate"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onMemberClick(name);
+                    }}
+                    className={cn(
+                      "text-xs px-1.5 py-0.5 rounded border font-medium truncate transition-colors",
+                      highlightedMember === name
+                        ? "bg-amber-400 border-amber-500 text-amber-950 cursor-pointer"
+                        : "bg-white dark:bg-black border-border/50 text-foreground hover:bg-amber-50 hover:border-amber-300 cursor-pointer"
+                    )}
                   >
                     {name}
                   </div>
