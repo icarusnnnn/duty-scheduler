@@ -4,6 +4,7 @@ import {
   getListDutiesQueryKey, 
   useListMemos, 
   getListMemosQueryKey,
+  useListMembers,
   useSwapDuties,
   getListSwapsQueryKey
 } from "@workspace/api-client-react";
@@ -14,8 +15,9 @@ import { SwapHistoryPanel } from "@/components/swap/SwapHistoryPanel";
 import { MemberManager } from "@/components/members/MemberManager";
 import { DayDetailModal } from "@/components/calendar/DayDetailModal";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeftRight, User, X } from "lucide-react";
+import { ArrowLeftRight, CalendarSearch, User, X } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
 export default function Home() {
@@ -32,17 +34,15 @@ export default function Home() {
     { query: { queryKey: getListMemosQueryKey({ from: range.from, to: range.to }) } }
   );
 
+  const { data: members = [] } = useListMembers();
+
   const swapDuties = useSwapDuties();
 
   const [modalState, setModalState] = useState<{
     isOpen: boolean;
     date: string | null;
     initialMemberIds: number[];
-  }>({
-    isOpen: false,
-    date: null,
-    initialMemberIds: []
-  });
+  }>({ isOpen: false, date: null, initialMemberIds: [] });
 
   const [swapMode, setSwapMode] = useState(false);
   const [swapSelection, setSwapSelection] = useState<string[]>([]);
@@ -50,29 +50,31 @@ export default function Home() {
 
   // 개인 당직일 확인 모드
   const [highlightedMember, setHighlightedMember] = useState<string | null>(null);
+  const [highlightPopoverOpen, setHighlightPopoverOpen] = useState(false);
 
   const handleMemberHighlight = (name: string) => {
     setHighlightedMember(prev => prev === name ? null : name);
   };
 
+  const handleSelectMemberFromPopover = (name: string) => {
+    setHighlightedMember(name);
+    setHighlightPopoverOpen(false);
+  };
+
+  const handleClearHighlight = () => {
+    setHighlightedMember(null);
+  };
+
   const handleDayClick = (date: string, duty: any) => {
-    if (highlightedMember) return; // 하이라이트 모드 중엔 모달 열지 않음
-    setModalState({
-      isOpen: true,
-      date,
-      initialMemberIds: duty?.memberIds || []
-    });
+    if (highlightedMember) return;
+    setModalState({ isOpen: true, date, initialMemberIds: duty?.memberIds || [] });
   };
 
   const handleDaySelectForSwap = (date: string) => {
     setSwapSelection((prev) => {
-      if (prev.includes(date)) {
-        return prev.filter((d) => d !== date);
-      }
+      if (prev.includes(date)) return prev.filter((d) => d !== date);
       const newSel = [...prev, date];
-      if (newSel.length === 2) {
-        setSwapConfirmOpen(true);
-      }
+      if (newSel.length === 2) setSwapConfirmOpen(true);
       return newSel;
     });
   };
@@ -86,7 +88,6 @@ export default function Home() {
   const handleConfirmSwap = () => {
     if (swapSelection.length !== 2) return;
     const [dateA, dateB] = swapSelection;
-
     swapDuties.mutate({ data: { dateA, dateB } }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListDutiesQueryKey({ from: range.from, to: range.to }) });
@@ -99,7 +100,6 @@ export default function Home() {
   const swapDutyA = duties.find(d => d.date === swapSelection[0]);
   const swapDutyB = duties.find(d => d.date === swapSelection[1]);
 
-  // 하이라이트된 멤버의 당직 날짜 수 계산
   const highlightedMemberDayCount = highlightedMember
     ? duties.filter(d => d.memberNames.includes(highlightedMember)).length
     : 0;
@@ -115,20 +115,48 @@ export default function Home() {
               {format(range.fromD, "yyyy.MM")} - {format(range.toD, "yyyy.MM")}
             </span>
           </div>
+
           <div className="flex items-center gap-3">
-            {/* 개인 당직일 확인 모드 배지 */}
-            {highlightedMember && (
+            {/* 개인 당직일 확인 버튼 */}
+            {highlightedMember ? (
               <div className="flex items-center gap-2 bg-amber-50 text-amber-800 px-3 py-1.5 rounded-md border border-amber-300">
                 <User className="w-4 h-4" />
                 <span className="text-sm font-semibold">{highlightedMember}</span>
                 <span className="text-xs text-amber-600">· {highlightedMemberDayCount}일</span>
                 <button
                   className="ml-1 hover:bg-amber-200 rounded p-0.5 transition-colors"
-                  onClick={() => setHighlightedMember(null)}
+                  onClick={handleClearHighlight}
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
+            ) : (
+              <Popover open={highlightPopoverOpen} onOpenChange={setHighlightPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="secondary" size="sm" className="gap-2">
+                    <CalendarSearch className="w-4 h-4" />
+                    <span>개인 당직일 확인</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-48 p-2" align="end">
+                  {members.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-2">등록된 인원이 없습니다</p>
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      <p className="text-xs text-muted-foreground px-2 py-1 font-medium">인원 선택</p>
+                      {members.map((m) => (
+                        <button
+                          key={m.id}
+                          className="text-sm text-left px-3 py-2 rounded hover:bg-amber-50 hover:text-amber-800 transition-colors"
+                          onClick={() => handleSelectMemberFromPopover(m.name)}
+                        >
+                          {m.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
             )}
 
             {swapMode ? (
@@ -139,12 +167,7 @@ export default function Home() {
                 </Button>
               </div>
             ) : (
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                className="gap-2"
-                onClick={() => setSwapMode(true)}
-              >
+              <Button variant="secondary" size="sm" className="gap-2" onClick={() => setSwapMode(true)}>
                 <ArrowLeftRight className="w-4 h-4" />
                 <span>교체 모드</span>
               </Button>
@@ -192,11 +215,8 @@ export default function Home() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>당직 교체 확인</DialogTitle>
-            <DialogDescription>
-              선택한 두 날짜의 당직 근무자를 교체하시겠습니까?
-            </DialogDescription>
+            <DialogDescription>선택한 두 날짜의 당직 근무자를 교체하시겠습니까?</DialogDescription>
           </DialogHeader>
-          
           <div className="flex flex-col gap-4 py-4">
             <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border">
               <div className="flex flex-col gap-1">
@@ -218,11 +238,8 @@ export default function Home() {
               </div>
             </div>
           </div>
-
           <DialogFooter>
-            <Button variant="outline" onClick={handleCancelSwap} disabled={swapDuties.isPending}>
-              취소
-            </Button>
+            <Button variant="outline" onClick={handleCancelSwap} disabled={swapDuties.isPending}>취소</Button>
             <Button onClick={handleConfirmSwap} disabled={swapDuties.isPending}>
               {swapDuties.isPending ? "교체 중..." : "교체 완료"}
             </Button>
