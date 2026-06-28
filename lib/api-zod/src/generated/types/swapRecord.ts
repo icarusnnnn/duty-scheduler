@@ -12,5 +12,6 @@ export interface SwapRecord {
   dateB: string;
   memberNamesA: string[];
   memberNamesB: string[];
+  modifiedBy?: string | null;
   swappedAt: string;
 }

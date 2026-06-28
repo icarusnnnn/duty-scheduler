@@ -103,10 +103,10 @@ router.put("/duties/:date", async (req, res) => {
 router.post("/duties/swap", async (req, res) => {
   const parsed = SwapDutiesBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid request" });
+    res.status(400).json({ error: "Invalid request", detail: parsed.error });
     return;
   }
-  const { dateA, memberIdA, dateB, memberIdB } = parsed.data;
+  const { dateA, memberIdsA, dateB, memberIdsB, modifiedBy } = parsed.data;
 
   // Fetch both existing duties
   const existing = await db
@@ -117,52 +117,83 @@ router.post("/duties/swap", async (req, res) => {
   const dutyA = existing.find((d) => d.date === dateA);
   const dutyB = existing.find((d) => d.date === dateB);
 
-  // Replace only the specific member in each date's slots
-  let newA1 = dutyA?.member1Id ?? null;
-  let newA2 = dutyA?.member2Id ?? null;
-  if (newA1 === memberIdA) newA1 = memberIdB;
-  else if (newA2 === memberIdA) newA2 = memberIdB;
+  // Current slots as arrays (up to 2 entries, null removed)
+  const slotsA: (number | null)[] = [dutyA?.member1Id ?? null, dutyA?.member2Id ?? null];
+  const slotsB: (number | null)[] = [dutyB?.member1Id ?? null, dutyB?.member2Id ?? null];
 
-  let newB1 = dutyB?.member1Id ?? null;
-  let newB2 = dutyB?.member2Id ?? null;
-  if (newB1 === memberIdB) newB1 = memberIdA;
-  else if (newB2 === memberIdB) newB2 = memberIdA;
+  // For each memberIdA, replace with the corresponding memberIdB at same index
+  // Strategy: maintain order — replace each memberIdA slot with the matching memberIdB
+  const newSlotsA = [...slotsA];
+  const newSlotsB = [...slotsB];
+
+  memberIdsA.forEach((idA, i) => {
+    const idB = memberIdsB[i] ?? null;
+    // Find and replace idA in newSlotsA with idB
+    const posA = newSlotsA.indexOf(idA);
+    if (posA !== -1) newSlotsA[posA] = idB;
+
+    // Find and replace idB in newSlotsB with idA
+    if (idB !== null) {
+      const posB = newSlotsB.indexOf(idB);
+      if (posB !== -1) newSlotsB[posB] = idA;
+      else {
+        // idB didn't exist in B (asymmetric swap: moving A's member to B)
+        const emptyB = newSlotsB.indexOf(null);
+        if (emptyB !== -1) newSlotsB[emptyB] = idA;
+      }
+    }
+  });
+
+  // Handle any idB that have no corresponding idA (extra members from B)
+  memberIdsB.forEach((idB, i) => {
+    if (i >= memberIdsA.length) {
+      const idA = null;
+      const posB = newSlotsB.indexOf(idB);
+      if (posB !== -1) newSlotsB[posB] = idA;
+      const emptyA = newSlotsA.indexOf(null);
+      // just remove from B, don't add to A (or add if there's space)
+    }
+  });
+
+  const [newA1, newA2] = newSlotsA;
+  const [newB1, newB2] = newSlotsB;
 
   // Update dateA
   await db
     .insert(dutiesTable)
-    .values({ date: dateA, member1Id: newA1, member2Id: newA2 })
+    .values({ date: dateA, member1Id: newA1 ?? null, member2Id: newA2 ?? null })
     .onConflictDoUpdate({
       target: dutiesTable.date,
-      set: { member1Id: newA1, member2Id: newA2, updatedAt: new Date() },
+      set: { member1Id: newA1 ?? null, member2Id: newA2 ?? null, updatedAt: new Date() },
     });
 
   // Update dateB
   await db
     .insert(dutiesTable)
-    .values({ date: dateB, member1Id: newB1, member2Id: newB2 })
+    .values({ date: dateB, member1Id: newB1 ?? null, member2Id: newB2 ?? null })
     .onConflictDoUpdate({
       target: dutiesTable.date,
-      set: { member1Id: newB1, member2Id: newB2, updatedAt: new Date() },
+      set: { member1Id: newB1 ?? null, member2Id: newB2 ?? null, updatedAt: new Date() },
     });
 
-  const newDutyA = await buildDutyResponse(dateA, newA1, newA2);
-  const newDutyB = await buildDutyResponse(dateB, newB1, newB2);
+  const newDutyA = await buildDutyResponse(dateA, newA1 ?? null, newA2 ?? null);
+  const newDutyB = await buildDutyResponse(dateB, newB1 ?? null, newB2 ?? null);
 
-  // Record the swap with member names involved
-  const memberNamesForRecord = await db
-    .select()
-    .from(membersTable)
-    .where(inArray(membersTable.id, [memberIdA, memberIdB]));
-  const nameMap = new Map(memberNamesForRecord.map((m) => [m.id, m.name]));
+  // Resolve member names for history
+  const allIds = [...new Set([...memberIdsA, ...memberIdsB])].filter(Boolean);
+  const memberRows = allIds.length > 0
+    ? await db.select().from(membersTable).where(inArray(membersTable.id, allIds))
+    : [];
+  const nameMap = new Map(memberRows.map((m) => [m.id, m.name]));
 
   const [swapRecord] = await db
     .insert(swapsTable)
     .values({
       dateA,
       dateB,
-      memberNamesA: JSON.stringify([nameMap.get(memberIdA) ?? ""]),
-      memberNamesB: JSON.stringify([nameMap.get(memberIdB) ?? ""]),
+      memberNamesA: JSON.stringify(memberIdsA.map(id => nameMap.get(id) ?? "")),
+      memberNamesB: JSON.stringify(memberIdsB.map(id => nameMap.get(id) ?? "")),
+      modifiedBy: modifiedBy ?? null,
     })
     .returning();
 
@@ -175,6 +206,7 @@ router.post("/duties/swap", async (req, res) => {
       dateB: swapRecord.dateB,
       memberNamesA: JSON.parse(swapRecord.memberNamesA),
       memberNamesB: JSON.parse(swapRecord.memberNamesB),
+      modifiedBy: swapRecord.modifiedBy ?? null,
       swappedAt: swapRecord.swappedAt.toISOString(),
     },
   });

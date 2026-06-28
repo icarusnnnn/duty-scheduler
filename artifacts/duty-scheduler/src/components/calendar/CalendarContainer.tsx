@@ -11,7 +11,7 @@ interface CalendarContainerProps {
   swapMode: boolean;
   swapSelectedDates: string[];
   swapSelectedKeys: string[];
-  onSwapMemberSelect: (date: string, memberId: number, memberName: string) => void;
+  onSwapMemberSelect: (date: string, memberIds: number[], memberNames: string[]) => void;
   highlightedMember: string | null;
   onMemberClick: (name: string) => void;
 }

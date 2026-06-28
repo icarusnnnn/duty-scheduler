@@ -9,10 +9,12 @@
 export interface SwapInput {
   /** First date YYYY-MM-DD */
   dateA: string;
-  /** Member ID to swap from dateA */
-  memberIdA: number;
+  /** Member IDs to swap from dateA (1 or 2) */
+  memberIdsA: number[];
   /** Second date YYYY-MM-DD */
   dateB: string;
-  /** Member ID to swap from dateB */
-  memberIdB: number;
+  /** Member IDs to swap from dateB (1 or 2) */
+  memberIdsB: number[];
+  /** Name of the member who performed the swap */
+  modifiedBy?: string | null;
 }

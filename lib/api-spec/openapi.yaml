@@ -332,20 +332,28 @@ components:
         dateA:
           type: string
           description: First date YYYY-MM-DD
-        memberIdA:
-          type: integer
-          description: Member ID to swap from dateA
+        memberIdsA:
+          type: array
+          items:
+            type: integer
+          description: Member IDs to swap from dateA (1 or 2)
         dateB:
           type: string
           description: Second date YYYY-MM-DD
-        memberIdB:
-          type: integer
-          description: Member ID to swap from dateB
+        memberIdsB:
+          type: array
+          items:
+            type: integer
+          description: Member IDs to swap from dateB (1 or 2)
+        modifiedBy:
+          type: string
+          description: Name of the member who performed the swap
+          nullable: true
       required:
         - dateA
-        - memberIdA
+        - memberIdsA
         - dateB
-        - memberIdB
+        - memberIdsB
 
     SwapResult:
       type: object
@@ -378,6 +386,9 @@ components:
           type: array
           items:
             type: string
+        modifiedBy:
+          type: string
+          nullable: true
         swappedAt:
           type: string
       required:

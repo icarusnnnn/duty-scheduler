@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from "react";
-import { 
-  useListDuties, 
-  getListDutiesQueryKey, 
-  useListMemos, 
+import {
+  useListDuties,
+  getListDutiesQueryKey,
+  useListMemos,
   getListMemosQueryKey,
   useListMembers,
   useSwapDuties,
@@ -17,20 +17,22 @@ import { DayDetailModal } from "@/components/calendar/DayDetailModal";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeftRight, CalendarSearch, User, X } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
-// 교체 선택 항목: 날짜 + 특정 멤버
+// 교체 선택 슬롯: 날짜 + 1명 또는 여러명(전체)
 interface SwapSlot {
   date: string;
-  memberId: number;
-  memberName: string;
+  memberIds: number[];
+  memberNames: string[];
+  isAll: boolean; // 날짜 셀 전체 클릭 여부
 }
 
 export default function Home() {
   const queryClient = useQueryClient();
   const range = useMemo(() => getSixMonthsRange(new Date()), []);
-  
+
   const { data: duties = [], isLoading: isLoadingDuties } = useListDuties(
     { from: range.from, to: range.to },
     { query: { queryKey: getListDutiesQueryKey({ from: range.from, to: range.to }) } }
@@ -51,10 +53,11 @@ export default function Home() {
     initialMemberIds: number[];
   }>({ isOpen: false, date: null, initialMemberIds: [] });
 
-  // 교체 모드: 날짜+사람 단위로 선택
+  // 교체 모드 상태
   const [swapMode, setSwapMode] = useState(false);
   const [swapSlots, setSwapSlots] = useState<SwapSlot[]>([]);
   const [swapConfirmOpen, setSwapConfirmOpen] = useState(false);
+  const [modifiedBy, setModifiedBy] = useState<string>("none");
 
   // 개인 당직일 확인 모드
   const [highlightedMember, setHighlightedMember] = useState<string | null>(null);
@@ -75,17 +78,26 @@ export default function Home() {
     setModalState({ isOpen: true, date, initialMemberIds: duty?.memberIds || [] });
   };
 
-  // 교체 모드에서 이름 태그 클릭 → 슬롯 선택/해제
-  const handleSwapMemberSelect = (date: string, memberId: number, memberName: string) => {
+  // 교체 모드에서 날짜/이름 클릭 처리
+  // memberIds.length > 1이면 전체 선택, === 1이면 개인 선택
+  const handleSwapMemberSelect = (date: string, memberIds: number[], memberNames: string[]) => {
     setSwapSlots(prev => {
-      // 이미 선택된 항목이면 해제
-      const exists = prev.find(s => s.date === date && s.memberId === memberId);
-      if (exists) return prev.filter(s => !(s.date === date && s.memberId === memberId));
+      const isAll = memberIds.length > 1;
+      const key = isAll ? `${date}::ALL` : `${date}::${memberIds[0]}`;
 
-      // 첫 번째 슬롯이 같은 날짜면 교체 불가
+      // 이미 같은 키가 선택돼 있으면 해제
+      const alreadyIndex = prev.findIndex(s => {
+        const sKey = s.isAll ? `${s.date}::ALL` : `${s.date}::${s.memberIds[0]}`;
+        return sKey === key;
+      });
+      if (alreadyIndex !== -1) {
+        return prev.filter((_, i) => i !== alreadyIndex);
+      }
+
+      // 같은 날짜가 이미 선택된 경우 교체 불가
       if (prev.length === 1 && prev[0].date === date) return prev;
 
-      const newSlots = [...prev, { date, memberId, memberName }];
+      const newSlots = [...prev, { date, memberIds, memberNames, isAll }];
       if (newSlots.length === 2) {
         setSwapConfirmOpen(true);
       }
@@ -97,14 +109,29 @@ export default function Home() {
     setSwapSlots([]);
     setSwapMode(false);
     setSwapConfirmOpen(false);
+    setModifiedBy("none");
   };
 
   const handleConfirmSwap = () => {
     if (swapSlots.length !== 2) return;
     const [slotA, slotB] = swapSlots;
 
+    // 그룹 선택(전체)과 개인 선택이 섞인 경우 처리
+    // 만약 슬롯 개수가 다르면 짧은 쪽을 반복(또는 한쪽만 이동)
+    // 여기서는 일대일 대응이 기본 — 2명↔2명, 1명↔1명, 2명↔1명(나머지는 빈자리)
+    const memberIdsA = slotA.memberIds;
+    const memberIdsB = slotB.memberIds;
+
     swapDuties.mutate(
-      { data: { dateA: slotA.date, memberIdA: slotA.memberId, dateB: slotB.date, memberIdB: slotB.memberId } },
+      {
+        data: {
+          dateA: slotA.date,
+          memberIdsA,
+          dateB: slotB.date,
+          memberIdsB,
+          modifiedBy: modifiedBy === "none" ? undefined : modifiedBy,
+        }
+      },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListDutiesQueryKey({ from: range.from, to: range.to }) });
@@ -115,14 +142,19 @@ export default function Home() {
     );
   };
 
-  // 현재 교체 선택된 날짜 목록 (MonthGrid에서 셀 하이라이트용)
+  // 선택 상태 key 목록 (MonthGrid에 전달)
   const swapSelectedDates = swapSlots.map(s => s.date);
-  // 현재 교체 선택된 (날짜+멤버ID) 목록
-  const swapSelectedKeys = swapSlots.map(s => `${s.date}::${s.memberId}`);
+  const swapSelectedKeys = swapSlots.map(s =>
+    s.isAll ? `${s.date}::ALL` : `${s.date}::${s.memberIds[0]}`
+  );
 
   const highlightedMemberDayCount = highlightedMember
     ? duties.filter(d => d.memberNames.includes(highlightedMember)).length
     : 0;
+
+  // 교체 확인 다이얼로그에서 표시할 라벨
+  const slotLabel = (slot: SwapSlot) =>
+    `${format(parseISO(slot.date), "M월 d일")} · ${slot.memberNames.join(", ")}`;
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -183,7 +215,9 @@ export default function Home() {
             {swapMode ? (
               <div className="flex items-center gap-2 bg-primary/10 text-primary px-3 py-1.5 rounded-md border border-primary/20">
                 <span className="text-sm font-medium">
-                  교체할 당직자 이름을 클릭하세요 ({swapSlots.length}/2)
+                  {swapSlots.length === 0
+                    ? "이름 클릭(개인) 또는 날짜 셀 클릭(전체)"
+                    : `첫 번째 선택 완료 — 두 번째를 선택하세요 (${swapSlots[0].memberNames.join(", ")})`}
                 </span>
                 <Button variant="ghost" size="sm" className="h-7 px-2 hover:bg-primary/20 text-primary" onClick={handleCancelSwap}>
                   취소
@@ -237,29 +271,56 @@ export default function Home() {
 
       {/* 교체 확인 다이얼로그 */}
       <Dialog open={swapConfirmOpen} onOpenChange={(open) => !open && handleCancelSwap()}>
-        <DialogContent>
+        <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>당직 교체 확인</DialogTitle>
             <DialogDescription>
-              선택한 두 당직자의 날짜를 서로 교체하시겠습니까?
+              선택한 당직자의 날짜를 서로 교체합니다.
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="flex flex-col gap-4 py-4">
-            <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border">
+
+          <div className="flex flex-col gap-4 py-2">
+            {/* 교체 내용 요약 */}
+            <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg border">
               {swapSlots[0] && (
-                <div className="flex flex-col gap-1">
-                  <span className="text-sm text-muted-foreground">{format(parseISO(swapSlots[0].date), "M월 d일")}</span>
-                  <span className="text-base font-bold text-primary">{swapSlots[0].memberName}</span>
+                <div className="flex-1 flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">{format(parseISO(swapSlots[0].date), "M월 d일")}</span>
+                  <span className="text-sm font-bold text-primary leading-tight">
+                    {swapSlots[0].memberNames.join(", ")}
+                  </span>
                 </div>
               )}
-              <ArrowLeftRight className="w-5 h-5 text-muted-foreground mx-4" />
+              <ArrowLeftRight className="w-5 h-5 text-muted-foreground shrink-0" />
               {swapSlots[1] && (
-                <div className="flex flex-col gap-1 text-right">
-                  <span className="text-sm text-muted-foreground">{format(parseISO(swapSlots[1].date), "M월 d일")}</span>
-                  <span className="text-base font-bold text-primary">{swapSlots[1].memberName}</span>
+                <div className="flex-1 flex flex-col gap-1 text-right">
+                  <span className="text-xs text-muted-foreground">{format(parseISO(swapSlots[1].date), "M월 d일")}</span>
+                  <span className="text-sm font-bold text-primary leading-tight">
+                    {swapSlots[1].memberNames.join(", ")}
+                  </span>
                 </div>
               )}
+            </div>
+
+            {/* 수정한 당직자 선택 */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                <User className="w-4 h-4 text-muted-foreground" />
+                교체 요청자
+              </label>
+              <Select value={modifiedBy} onValueChange={setModifiedBy}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="선택 안함" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">선택 안함</SelectItem>
+                  {members.map((m) => (
+                    <SelectItem key={m.id} value={m.name}>
+                      {m.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">교체 내역에 요청자 이름이 기록됩니다.</p>
             </div>
           </div>
 

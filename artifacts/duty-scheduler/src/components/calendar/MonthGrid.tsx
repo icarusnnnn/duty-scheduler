@@ -12,8 +12,8 @@ interface MonthGridProps {
   onDayClick: (date: string, duty: Duty | undefined) => void;
   swapMode: boolean;
   swapSelectedDates: string[];
-  swapSelectedKeys: string[];   // "날짜::memberId" 형태
-  onSwapMemberSelect: (date: string, memberId: number, memberName: string) => void;
+  swapSelectedKeys: string[];   // "날짜::memberId" 또는 "날짜::ALL" 형태
+  onSwapMemberSelect: (date: string, memberIds: number[], memberNames: string[]) => void;
   highlightedMember: string | null;
   onMemberClick: (name: string) => void;
 }
@@ -41,7 +41,7 @@ export function MonthGrid({
           {format(monthStart, "yyyy년 M월")}
         </h3>
       </div>
-      
+
       <div className="grid grid-cols-7 border-b bg-muted/10">
         {WEEKDAYS.map((day, i) => (
           <div
@@ -61,7 +61,6 @@ export function MonthGrid({
           const dateStr = format(day, "yyyy-MM-dd");
           const isCurrentMonth = isSameMonth(day, monthStart);
 
-          // 이번달 날짜가 아니면 빈 칸
           if (!isCurrentMonth) {
             return (
               <div
@@ -81,15 +80,15 @@ export function MonthGrid({
           const holidayName = getHolidayName(dateStr);
           const isRedDay = day.getDay() === 0 || holiday;
 
-          // 직전 날이 빨간날인지 확인
           const prevDay = i > 0 ? days[i - 1] : null;
           const prevDateStr = prevDay ? format(prevDay, "yyyy-MM-dd") : null;
           const isPrevRedDay = prevDay
             ? prevDay.getDay() === 0 || (prevDateStr ? isKoreanHoliday(prevDateStr) : false)
             : false;
 
-          // 교체 모드: 이 날짜가 선택됐는지
-          const isSwapSelected = swapSelectedDates.includes(dateStr);
+          // 교체 선택 상태
+          const isDateSelected = swapSelectedDates.includes(dateStr);
+          const isAllSelected = swapSelectedKeys.includes(`${dateStr}::ALL`);
 
           // 개인 당직일 확인 하이라이트
           const isHighlightedDay =
@@ -97,20 +96,30 @@ export function MonthGrid({
             duty?.memberNames.includes(highlightedMember) === true;
           const isDimmed = highlightedMember != null && !isHighlightedDay;
 
+          const hasMembers = duty && duty.memberIds.length > 0;
+
           return (
             <div
               key={dateStr}
               onClick={() => {
-                if (!swapMode) onDayClick(dateStr, duty);
+                if (swapMode) {
+                  // 날짜 셀 클릭: 해당 날짜의 모든 당직자 선택
+                  if (hasMembers) {
+                    onSwapMemberSelect(dateStr, duty.memberIds, duty.memberNames);
+                  }
+                } else {
+                  onDayClick(dateStr, duty);
+                }
               }}
               className={cn(
                 "min-h-[100px] p-2 border-r border-b relative transition-colors group",
-                swapMode ? "cursor-default" : "cursor-pointer hover:bg-muted/30",
+                swapMode && hasMembers ? "cursor-pointer hover:bg-primary/5" : swapMode ? "cursor-default" : "cursor-pointer hover:bg-muted/30",
                 today && !isHighlightedDay && "bg-primary/5",
                 isPrevRedDay && !today && !isHighlightedDay && "bg-muted/50",
                 isHighlightedDay && "bg-amber-100 ring-2 ring-amber-400 ring-inset z-10",
                 isDimmed && "opacity-40",
-                isSwapSelected && "bg-primary/5",
+                isAllSelected && "bg-primary/10 ring-2 ring-primary ring-inset z-10",
+                isDateSelected && !isAllSelected && "bg-primary/5",
                 i % 7 === 6 && "border-r-0"
               )}
             >
@@ -141,7 +150,8 @@ export function MonthGrid({
                 {duty?.memberNames.map((name, idx) => {
                   const memberId = duty.memberIds[idx];
                   const swapKey = `${dateStr}::${memberId}`;
-                  const isSwapPicked = swapSelectedKeys.includes(swapKey);
+                  const isIndividualPicked = swapSelectedKeys.includes(swapKey);
+                  const isPicked = isAllSelected || isIndividualPicked;
 
                   return (
                     <div
@@ -149,14 +159,15 @@ export function MonthGrid({
                       onClick={(e) => {
                         e.stopPropagation();
                         if (swapMode) {
-                          onSwapMemberSelect(dateStr, memberId, name);
+                          // 이름 태그 클릭 = 개인 선택
+                          onSwapMemberSelect(dateStr, [memberId], [name]);
                         } else {
                           onMemberClick(name);
                         }
                       }}
                       className={cn(
                         "text-xs px-1.5 py-0.5 rounded border font-medium truncate transition-colors cursor-pointer",
-                        swapMode && isSwapPicked
+                        swapMode && isPicked
                           ? "bg-primary text-primary-foreground border-primary"
                           : swapMode
                           ? "bg-white dark:bg-black border-border/50 text-foreground hover:bg-primary/10 hover:border-primary/40"
@@ -175,6 +186,13 @@ export function MonthGrid({
                   </div>
                 )}
               </div>
+
+              {/* 교체 모드에서 2명인 날짜에 "전체 선택" 힌트 */}
+              {swapMode && hasMembers && duty.memberIds.length === 2 && !isDateSelected && (
+                <div className="absolute bottom-1 right-1 text-[9px] text-muted-foreground/50 group-hover:text-primary/60 transition-colors">
+                  전체
+                </div>
+              )}
             </div>
           );
         })}

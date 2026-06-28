@@ -95,9 +95,10 @@ export const UpdateDutyResponse = zod.object({
  */
 export const SwapDutiesBody = zod.object({
   "dateA": zod.string().describe('First date YYYY-MM-DD'),
-  "memberIdA": zod.number().describe('Member ID to swap from dateA'),
+  "memberIdsA": zod.array(zod.number()).describe('Member IDs to swap from dateA (1 or 2)'),
   "dateB": zod.string().describe('Second date YYYY-MM-DD'),
-  "memberIdB": zod.number().describe('Member ID to swap from dateB')
+  "memberIdsB": zod.array(zod.number()).describe('Member IDs to swap from dateB (1 or 2)'),
+  "modifiedBy": zod.string().nullish().describe('Name of the member who performed the swap')
 })
 
 export const SwapDutiesResponse = zod.object({
@@ -117,6 +118,7 @@ export const SwapDutiesResponse = zod.object({
   "dateB": zod.string(),
   "memberNamesA": zod.array(zod.string()),
   "memberNamesB": zod.array(zod.string()),
+  "modifiedBy": zod.string().nullish(),
   "swappedAt": zod.string()
 })
 })
@@ -131,6 +133,7 @@ export const ListSwapsResponseItem = zod.object({
   "dateB": zod.string(),
   "memberNamesA": zod.array(zod.string()),
   "memberNamesB": zod.array(zod.string()),
+  "modifiedBy": zod.string().nullish(),
   "swappedAt": zod.string()
 })
 export const ListSwapsResponse = zod.array(ListSwapsResponseItem)

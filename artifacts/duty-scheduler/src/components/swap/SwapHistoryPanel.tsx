@@ -1,7 +1,7 @@
 import React from "react";
 import { useListSwaps, getListSwapsQueryKey } from "@workspace/api-client-react";
 import { format, parseISO } from "date-fns";
-import { ArrowLeftRight, Clock } from "lucide-react";
+import { ArrowLeftRight, Clock, User } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,21 +34,32 @@ export function SwapHistoryPanel() {
             ) : (
               swaps?.map((swap) => (
                 <div key={swap.id} className="flex flex-col gap-2 p-4 border border-border/50 rounded-xl bg-card shadow-sm">
-                  <div className="flex items-center justify-between text-sm font-medium">
+                  <div className="flex items-center justify-between text-sm font-semibold">
                     <span className="text-foreground">{format(parseISO(swap.dateA), "M월 d일")}</span>
-                    <ArrowLeftRight className="w-4 h-4 text-muted-foreground" />
+                    <ArrowLeftRight className="w-4 h-4 text-muted-foreground mx-2 shrink-0" />
                     <span className="text-foreground">{format(parseISO(swap.dateB), "M월 d일")}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">
+                    <span className="text-primary font-medium">
                       {swap.memberNamesA.length > 0 ? swap.memberNamesA.join(", ") : "지정 안됨"}
                     </span>
-                    <span className="text-muted-foreground">
+                    <span className="text-primary font-medium">
                       {swap.memberNamesB.length > 0 ? swap.memberNamesB.join(", ") : "지정 안됨"}
                     </span>
                   </div>
-                  <div className="text-[11px] text-muted-foreground/70 text-right mt-1">
-                    {format(parseISO(swap.swappedAt), "yyyy.MM.dd HH:mm")}
+
+                  <div className="flex items-center justify-between mt-1">
+                    {swap.modifiedBy ? (
+                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground bg-muted/40 px-2 py-0.5 rounded-full">
+                        <User className="w-3 h-3" />
+                        <span>{swap.modifiedBy}</span>
+                      </div>
+                    ) : (
+                      <div />
+                    )}
+                    <div className="text-[11px] text-muted-foreground/70">
+                      {format(parseISO(swap.swappedAt), "yyyy.MM.dd HH:mm")}
+                    </div>
                   </div>
                 </div>
               ))
