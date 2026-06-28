@@ -11,8 +11,9 @@ interface MonthGridProps {
   memos: Memo[];
   onDayClick: (date: string, duty: Duty | undefined) => void;
   swapMode: boolean;
-  swapSelection: string[];
-  onDaySelectForSwap: (date: string) => void;
+  swapSelectedDates: string[];
+  swapSelectedKeys: string[];   // "날짜::memberId" 형태
+  onSwapMemberSelect: (date: string, memberId: number, memberName: string) => void;
   highlightedMember: string | null;
   onMemberClick: (name: string) => void;
 }
@@ -25,8 +26,9 @@ export function MonthGrid({
   memos,
   onDayClick,
   swapMode,
-  swapSelection,
-  onDaySelectForSwap,
+  swapSelectedDates,
+  swapSelectedKeys,
+  onSwapMemberSelect,
   highlightedMember,
   onMemberClick
 }: MonthGridProps) {
@@ -59,7 +61,7 @@ export function MonthGrid({
           const dateStr = format(day, "yyyy-MM-dd");
           const isCurrentMonth = isSameMonth(day, monthStart);
 
-          // 이번달 날짜가 아니면 빈 칸만 표시
+          // 이번달 날짜가 아니면 빈 칸
           if (!isCurrentMonth) {
             return (
               <div
@@ -79,42 +81,36 @@ export function MonthGrid({
           const holidayName = getHolidayName(dateStr);
           const isRedDay = day.getDay() === 0 || holiday;
 
-          // 직전 날이 빨간날(일요일 또는 공휴일)인지 확인
+          // 직전 날이 빨간날인지 확인
           const prevDay = i > 0 ? days[i - 1] : null;
           const prevDateStr = prevDay ? format(prevDay, "yyyy-MM-dd") : null;
           const isPrevRedDay = prevDay
             ? prevDay.getDay() === 0 || (prevDateStr ? isKoreanHoliday(prevDateStr) : false)
             : false;
 
-          const isSelectedForSwap = swapSelection.includes(dateStr);
+          // 교체 모드: 이 날짜가 선택됐는지
+          const isSwapSelected = swapSelectedDates.includes(dateStr);
 
-          // 개인 당직일 확인: 이 날에 하이라이트된 멤버가 당직인지
+          // 개인 당직일 확인 하이라이트
           const isHighlightedDay =
             highlightedMember != null &&
             duty?.memberNames.includes(highlightedMember) === true;
-
-          // 하이라이트 모드가 켜져있지만 이 날은 해당 없는 경우 흐리게
-          const isDimmed =
-            highlightedMember != null && !isHighlightedDay;
+          const isDimmed = highlightedMember != null && !isHighlightedDay;
 
           return (
             <div
               key={dateStr}
               onClick={() => {
-                if (swapMode) {
-                  onDaySelectForSwap(dateStr);
-                } else {
-                  onDayClick(dateStr, duty);
-                }
+                if (!swapMode) onDayClick(dateStr, duty);
               }}
               className={cn(
-                "min-h-[100px] p-2 border-r border-b relative transition-colors cursor-pointer group",
-                "hover:bg-muted/30",
+                "min-h-[100px] p-2 border-r border-b relative transition-colors group",
+                swapMode ? "cursor-default" : "cursor-pointer hover:bg-muted/30",
                 today && !isHighlightedDay && "bg-primary/5",
                 isPrevRedDay && !today && !isHighlightedDay && "bg-muted/50",
                 isHighlightedDay && "bg-amber-100 ring-2 ring-amber-400 ring-inset z-10",
                 isDimmed && "opacity-40",
-                isSelectedForSwap && "bg-primary/10 ring-2 ring-primary ring-inset z-10",
+                isSwapSelected && "bg-primary/5",
                 i % 7 === 6 && "border-r-0"
               )}
             >
@@ -142,24 +138,38 @@ export function MonthGrid({
               </div>
 
               <div className="mt-2 flex flex-col gap-1">
-                {duty?.memberNames.map((name, idx) => (
-                  <div
-                    key={idx}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onMemberClick(name);
-                    }}
-                    className={cn(
-                      "text-xs px-1.5 py-0.5 rounded border font-medium truncate transition-colors",
-                      highlightedMember === name
-                        ? "bg-amber-400 border-amber-500 text-amber-950 cursor-pointer"
-                        : "bg-white dark:bg-black border-border/50 text-foreground hover:bg-amber-50 hover:border-amber-300 cursor-pointer"
-                    )}
-                  >
-                    {name}
-                  </div>
-                ))}
-                {(!duty || duty.memberNames.length === 0) && (
+                {duty?.memberNames.map((name, idx) => {
+                  const memberId = duty.memberIds[idx];
+                  const swapKey = `${dateStr}::${memberId}`;
+                  const isSwapPicked = swapSelectedKeys.includes(swapKey);
+
+                  return (
+                    <div
+                      key={idx}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (swapMode) {
+                          onSwapMemberSelect(dateStr, memberId, name);
+                        } else {
+                          onMemberClick(name);
+                        }
+                      }}
+                      className={cn(
+                        "text-xs px-1.5 py-0.5 rounded border font-medium truncate transition-colors cursor-pointer",
+                        swapMode && isSwapPicked
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : swapMode
+                          ? "bg-white dark:bg-black border-border/50 text-foreground hover:bg-primary/10 hover:border-primary/40"
+                          : highlightedMember === name
+                          ? "bg-amber-400 border-amber-500 text-amber-950"
+                          : "bg-white dark:bg-black border-border/50 text-foreground hover:bg-amber-50 hover:border-amber-300"
+                      )}
+                    >
+                      {name}
+                    </div>
+                  );
+                })}
+                {(!duty || duty.memberNames.length === 0) && !swapMode && (
                   <div className="text-xs px-1.5 py-0.5 text-muted-foreground/0 group-hover:text-muted-foreground/40 transition-colors">
                     +
                   </div>

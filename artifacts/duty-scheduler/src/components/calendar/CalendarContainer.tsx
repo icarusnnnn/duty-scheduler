@@ -9,8 +9,9 @@ interface CalendarContainerProps {
   memos: Memo[];
   onDayClick: (date: string, duty: Duty | undefined) => void;
   swapMode: boolean;
-  swapSelection: string[];
-  onDaySelectForSwap: (date: string) => void;
+  swapSelectedDates: string[];
+  swapSelectedKeys: string[];
+  onSwapMemberSelect: (date: string, memberId: number, memberName: string) => void;
   highlightedMember: string | null;
   onMemberClick: (name: string) => void;
 }
@@ -21,8 +22,9 @@ export function CalendarContainer({
   memos,
   onDayClick,
   swapMode,
-  swapSelection,
-  onDaySelectForSwap,
+  swapSelectedDates,
+  swapSelectedKeys,
+  onSwapMemberSelect,
   highlightedMember,
   onMemberClick
 }: CalendarContainerProps) {
@@ -38,8 +40,9 @@ export function CalendarContainer({
           memos={memos}
           onDayClick={onDayClick}
           swapMode={swapMode}
-          swapSelection={swapSelection}
-          onDaySelectForSwap={onDaySelectForSwap}
+          swapSelectedDates={swapSelectedDates}
+          swapSelectedKeys={swapSelectedKeys}
+          onSwapMemberSelect={onSwapMemberSelect}
           highlightedMember={highlightedMember}
           onMemberClick={onMemberClick}
         />

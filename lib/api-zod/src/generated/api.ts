@@ -95,7 +95,9 @@ export const UpdateDutyResponse = zod.object({
  */
 export const SwapDutiesBody = zod.object({
   "dateA": zod.string().describe('First date YYYY-MM-DD'),
-  "dateB": zod.string().describe('Second date YYYY-MM-DD')
+  "memberIdA": zod.number().describe('Member ID to swap from dateA'),
+  "dateB": zod.string().describe('Second date YYYY-MM-DD'),
+  "memberIdB": zod.number().describe('Member ID to swap from dateB')
 })
 
 export const SwapDutiesResponse = zod.object({

@@ -106,9 +106,9 @@ router.post("/duties/swap", async (req, res) => {
     res.status(400).json({ error: "Invalid request" });
     return;
   }
-  const { dateA, dateB } = parsed.data;
+  const { dateA, memberIdA, dateB, memberIdB } = parsed.data;
 
-  // Fetch both existing duties (if any)
+  // Fetch both existing duties
   const existing = await db
     .select()
     .from(dutiesTable)
@@ -117,39 +117,52 @@ router.post("/duties/swap", async (req, res) => {
   const dutyA = existing.find((d) => d.date === dateA);
   const dutyB = existing.find((d) => d.date === dateB);
 
-  const aM1 = dutyA?.member1Id ?? null;
-  const aM2 = dutyA?.member2Id ?? null;
-  const bM1 = dutyB?.member1Id ?? null;
-  const bM2 = dutyB?.member2Id ?? null;
+  // Replace only the specific member in each date's slots
+  let newA1 = dutyA?.member1Id ?? null;
+  let newA2 = dutyA?.member2Id ?? null;
+  if (newA1 === memberIdA) newA1 = memberIdB;
+  else if (newA2 === memberIdA) newA2 = memberIdB;
 
-  // Swap: put B's members into A, A's members into B
+  let newB1 = dutyB?.member1Id ?? null;
+  let newB2 = dutyB?.member2Id ?? null;
+  if (newB1 === memberIdB) newB1 = memberIdA;
+  else if (newB2 === memberIdB) newB2 = memberIdA;
+
+  // Update dateA
   await db
     .insert(dutiesTable)
-    .values({ date: dateA, member1Id: bM1, member2Id: bM2 })
+    .values({ date: dateA, member1Id: newA1, member2Id: newA2 })
     .onConflictDoUpdate({
       target: dutiesTable.date,
-      set: { member1Id: bM1, member2Id: bM2, updatedAt: new Date() },
+      set: { member1Id: newA1, member2Id: newA2, updatedAt: new Date() },
     });
 
+  // Update dateB
   await db
     .insert(dutiesTable)
-    .values({ date: dateB, member1Id: aM1, member2Id: aM2 })
+    .values({ date: dateB, member1Id: newB1, member2Id: newB2 })
     .onConflictDoUpdate({
       target: dutiesTable.date,
-      set: { member1Id: aM1, member2Id: aM2, updatedAt: new Date() },
+      set: { member1Id: newB1, member2Id: newB2, updatedAt: new Date() },
     });
 
-  const newDutyA = await buildDutyResponse(dateA, bM1, bM2);
-  const newDutyB = await buildDutyResponse(dateB, aM1, aM2);
+  const newDutyA = await buildDutyResponse(dateA, newA1, newA2);
+  const newDutyB = await buildDutyResponse(dateB, newB1, newB2);
 
-  // Record the swap
+  // Record the swap with member names involved
+  const memberNamesForRecord = await db
+    .select()
+    .from(membersTable)
+    .where(inArray(membersTable.id, [memberIdA, memberIdB]));
+  const nameMap = new Map(memberNamesForRecord.map((m) => [m.id, m.name]));
+
   const [swapRecord] = await db
     .insert(swapsTable)
     .values({
       dateA,
       dateB,
-      memberNamesA: JSON.stringify(newDutyA.memberNames),
-      memberNamesB: JSON.stringify(newDutyB.memberNames),
+      memberNamesA: JSON.stringify([nameMap.get(memberIdA) ?? ""]),
+      memberNamesB: JSON.stringify([nameMap.get(memberIdB) ?? ""]),
     })
     .returning();
 

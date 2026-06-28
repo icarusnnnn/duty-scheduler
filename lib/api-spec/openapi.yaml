@@ -332,12 +332,20 @@ components:
         dateA:
           type: string
           description: First date YYYY-MM-DD
+        memberIdA:
+          type: integer
+          description: Member ID to swap from dateA
         dateB:
           type: string
           description: Second date YYYY-MM-DD
+        memberIdB:
+          type: integer
+          description: Member ID to swap from dateB
       required:
         - dateA
+        - memberIdA
         - dateB
+        - memberIdB
 
     SwapResult:
       type: object

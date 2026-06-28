@@ -36,8 +36,12 @@ export interface DutyInput {
 export interface SwapInput {
   /** First date YYYY-MM-DD */
   dateA: string;
+  /** Member ID to swap from dateA */
+  memberIdA: number;
   /** Second date YYYY-MM-DD */
   dateB: string;
+  /** Member ID to swap from dateB */
+  memberIdB: number;
 }
 
 export interface SwapRecord {
